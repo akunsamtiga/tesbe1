@@ -1,0 +1,217 @@
+// src/controllers/productController.js
+const prisma = require("../utils/prisma");
+
+// Ambil semua produk dengan filter, sorting, dan pagination
+exports.getProducts = async (req, res, next) => {
+  try {
+    const { search, category, minPrice, maxPrice, sortBy, order, page, limit } = req.query;
+
+    // Buat filter pencarian
+    const filters = {};
+    if (search) {
+      filters.title = { contains: search, mode: "insensitive" };
+    }
+    if (category) {
+      const categoryId = parseInt(category, 10);
+      if (!isNaN(categoryId)) {
+        filters.categoryId = categoryId;
+      }
+    }
+    if (minPrice || maxPrice) {
+      filters.price = {};
+      if (minPrice) filters.price.gte = parseFloat(minPrice);
+      if (maxPrice) filters.price.lte = parseFloat(maxPrice);
+    }
+
+    // Buat opsi pengurutan
+    const orderBy = {};
+    if (sortBy && ["price", "createdAt", "rating"].includes(sortBy)) {
+      orderBy[sortBy] = order === "desc" ? "desc" : "asc";
+    }
+
+    // Konfigurasi pagination
+    const pageNumber = parseInt(page, 10) || 1;
+    const pageSize = parseInt(limit, 10) || 10;
+    const skip = (pageNumber - 1) * pageSize;
+
+    const products = await prisma.product.findMany({
+      where: filters,
+      orderBy: Object.keys(orderBy).length ? orderBy : undefined,
+      skip,
+      take: pageSize,
+      include: {
+        reviews: { select: { rating: true } },
+        category: true,
+      },
+    });
+
+    // Hitung rata-rata rating untuk setiap produk
+    const productsWithRating = products.map((product) => {
+      const reviews = product.reviews || [];
+      const avgRating =
+        reviews.length > 0
+          ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+          : 0;
+      return { ...product, rating: avgRating };
+    });
+
+    res.status(200).json(productsWithRating);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Ambil detail produk berdasarkan ID
+exports.getProductById = async (req, res, next) => {
+  try {
+    const productId = parseInt(req.params.id, 10);
+    if (isNaN(productId)) {
+      return res.status(400).json({ error: "Invalid product ID" });
+    }
+
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      include: { reviews: { select: { rating: true } }, category: true },
+    });
+
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const reviews = product.reviews || [];
+    const avgRating =
+      reviews.length > 0
+        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+        : 0;
+    res.status(200).json({ ...product, rating: avgRating });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Ambil produk berdasarkan categoryId (query parameter)
+exports.getProductsByCategoryId = async (req, res, next) => {
+  try {
+    const categoryId = parseInt(req.query.categoryId, 10);
+    if (isNaN(categoryId)) {
+      return res.status(400).json({ error: "Category ID must be a valid number" });
+    }
+
+    console.log("Fetching products for categoryId:", categoryId);
+
+    const products = await prisma.product.findMany({
+      where: { categoryId },
+      include: {
+        category: true,
+        reviews: { select: { rating: true } },
+      },
+    });
+
+    console.log("Products found:", products.length);
+
+    if (products.length === 0) {
+      return res.status(404).json({ error: "No products found for this category" });
+    }
+
+    res.json(products);
+  } catch (error) {
+    console.error("Error fetching products by category:", error);
+    next(error);
+  }
+};
+
+// Update stok produk
+exports.updateProductStock = async (req, res, next) => {
+  try {
+    const productId = parseInt(req.params.id, 10);
+    const { stock } = req.body;
+
+    if (isNaN(productId) || stock === undefined) {
+      return res.status(400).json({ error: "Invalid product ID or missing stock value" });
+    }
+
+    const updatedProduct = await prisma.product.update({
+      where: { id: productId },
+      data: { stock: parseInt(stock, 10) },
+    });
+    res.status(200).json({ message: "Product stock updated", product: updatedProduct });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Buat produk baru
+exports.createProduct = async (req, res, next) => {
+  try {
+    const { title, description, price, categoryId } = req.body;
+    const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+    if (!title || !description || !price || !categoryId) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    const parsedCategoryId = parseInt(categoryId, 10);
+    if (isNaN(parsedCategoryId)) {
+      return res.status(400).json({ error: "Invalid category ID" });
+    }
+
+    const product = await prisma.product.create({
+      data: {
+        title,
+        description,
+        price: parseFloat(price),
+        image,
+        categoryId: parsedCategoryId,
+      },
+    });
+
+    res.status(201).json({ message: "Product created", product });
+  } catch (error) {
+    console.error("Error creating product:", error);
+    next(error);
+  }
+};
+
+// Update produk berdasarkan ID
+exports.updateProduct = async (req, res, next) => {
+  try {
+    const productId = parseInt(req.params.id, 10);
+    if (isNaN(productId)) {
+      return res.status(400).json({ error: "Invalid product ID" });
+    }
+
+    const { title, description, price, categoryId } = req.body;
+    const updateData = {};
+
+    if (title) updateData.title = title;
+    if (description) updateData.description = description;
+    if (price) {
+      const parsedPrice = parseFloat(price);
+      if (isNaN(parsedPrice)) {
+        return res.status(400).json({ error: "Price must be a number" });
+      }
+      updateData.price = parsedPrice;
+    }
+    if (categoryId) {
+      const parsedCategoryId = parseInt(categoryId, 10);
+      if (isNaN(parsedCategoryId)) {
+        return res.status(400).json({ error: "Category ID must be a valid number" });
+      }
+      // Jika model menggunakan relasi, gunakan connect, atau cukup update categoryId jika field-nya ada.
+      updateData.category = { connect: { id: parsedCategoryId } };
+    }
+    if (req.file) {
+      updateData.image = `/uploads/${req.file.filename}`;
+    }
+
+    const product = await prisma.product.update({
+      where: { id: productId },
+      data: updateData,
+    });
+
+    res.status(200).json({ message: "Product updated", product });
+  } catch (error) {
+    console.error("Error updating product:", error);
+    next(error);
+  }
+};
