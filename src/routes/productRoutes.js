@@ -8,6 +8,7 @@ const {
   createProduct,
   updateProduct,
   updateProductStock,
+  deleteProduct,
 } = require("../controllers/productController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const adminMiddleware = require("../middlewares/adminMiddleware");
@@ -21,5 +22,7 @@ router.get("/:id", getProductById);
 router.post("/", authMiddleware, adminMiddleware, upload.single("image"), createProduct);
 router.put("/:id", authMiddleware, adminMiddleware, upload.single("image"), updateProduct);
 router.patch("/:id/stock", authMiddleware, adminMiddleware, updateProductStock);
+
+router.delete("/:id", authMiddleware, adminMiddleware, deleteProduct);
 
 module.exports = router;

@@ -1,3 +1,4 @@
+// src/middlewares/validators.js
 const { check, validationResult } = require('express-validator');
 
 // Aturan validasi untuk registrasi pengguna

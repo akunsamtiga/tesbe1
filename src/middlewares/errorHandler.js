@@ -2,11 +2,15 @@
 const logger = require('../utils/logger');
 
 const errorHandler = (err, req, res, next) => {
-  // Log error secara detail menggunakan Winston
-  logger.error('Error: %s', err.stack);
-  // Jika error memiliki properti statusCode, gunakan itu, jika tidak gunakan 500
   const statusCode = err.statusCode || 500;
-  res.status(statusCode).json({ error: err.message });
+
+  // 🔹 Logging error ke file logs/error.log
+  logger.error(`[${req.method}] ${req.originalUrl} - ${err.message}`);
+
+  res.status(statusCode).json({
+    error: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+  });
 };
 
 module.exports = errorHandler;

@@ -6,12 +6,13 @@ dotenv.config({
 });
 
 const express = require('express');
-const cors = require('cors');
 const helmet = require('helmet');
+const cors = require('cors');
+const morgan = require('morgan');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
+const session = require('express-session');
 const errorHandler = require('./src/middlewares/errorHandler');
-const morgan = require('morgan');
 
 const app = express();
 
@@ -20,6 +21,15 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+app.use(
+  session({
+    secret: "your-secret-key", // Ganti dengan secret key yang aman
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: process.env.NODE_ENV === 'production' } // true jika HTTPS
+  })
+);
+
 // Gunakan `morgan` hanya di development mode
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('combined'));
@@ -27,8 +37,8 @@ if (process.env.NODE_ENV !== 'test') {
 
 // Konfigurasi rate limiter: maksimal 100 request per IP dalam 15 menit.
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 menit
-  max: 500, // Maksimal 100 request per IP per windowMs
+  windowMs: 60 * 60 * 1000, // 60 menit
+  max: 500, // Maksimal 500 request per IP per windowMs
   message: {
     error: 'Terlalu banyak permintaan dari IP ini. Silakan coba lagi setelah 15 menit.'
   },
@@ -73,4 +83,4 @@ app.use('/api/categories', categoryRoutes);
 // Global error handler
 app.use(errorHandler);
 
-module.exports = app; // Jangan jalankan app.listen() di sini
+module.exports = app; 
