@@ -15,7 +15,7 @@ model User {
   email          String     @unique
   password       String
   role           String     @default("USER") // Bisa juga "ADMIN"
-  profilePicture String? // URL foto profil (misalnya: /uploads/...)
+  profilePicture String1? // URL foto profil (misalnya: /uploads/...)
   address        String? // Alamat lengkap (opsional)
   refreshToken   String? // Untuk menyimpan refresh token
   createdAt      DateTime   @default(now())

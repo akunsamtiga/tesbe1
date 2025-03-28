@@ -1,4 +1,3 @@
-// src/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
 const passport = require("../utils/passport");
@@ -16,9 +15,9 @@ router.post('/logout', authMiddleware, logoutUser);
 router.get(
     "/google",
     passport.authenticate("google", { scope: ["profile", "email"] })
-  );
+);
   
-  router.get(
+router.get(
     "/google/callback",
     passport.authenticate("google", { failureRedirect: "/login" }),
     (req, res) => {
@@ -28,6 +27,6 @@ router.get(
       // Redirect ke frontend dengan menyertakan token di query parameter
       res.redirect(`${process.env.FRONTEND_URL}/success?token=${accessToken}`);
     }
-  );  
+);  
     
 module.exports = router;

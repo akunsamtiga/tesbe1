@@ -1,11 +1,9 @@
-// src/controllers/authController.js
 const prisma = require('../utils/prisma');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const redis = require('../utils/redis');
 const { generateAccessToken, generateRefreshToken } = require('../utils/generateToken');
 
-// ✅ LOGIN USER & SIMPAN REFRESH TOKEN DI REDIS
+// ✅ LOGIN USER (Menyimpan refresh token di cookie, bukan Redis)
 exports.loginUser = async (req, res, next) => {
   try {
     const { email, password, rememberMe } = req.body;
@@ -21,10 +19,7 @@ exports.loginUser = async (req, res, next) => {
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
-    // 🔹 Simpan refresh token di Redis (expired dalam 7 hari)
-    await redis.set(`refresh:${user.id}`, refreshToken, 'EX', 604800);
-
-    // 🔹 Simpan refresh token dalam cookie
+    // 🔹 Simpan refresh token dalam cookie (tanpa Redis)
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -38,6 +33,7 @@ exports.loginUser = async (req, res, next) => {
   }
 };
 
+// ✅ REGISTER USER
 exports.registerUser = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
@@ -62,7 +58,7 @@ exports.registerUser = async (req, res, next) => {
   }
 };
 
-// ✅ REFRESH TOKEN (Mengambil Token Baru)
+// ✅ REFRESH TOKEN (Mengambil Token Baru tanpa Redis)
 exports.refreshToken = async (req, res, next) => {
   try {
     const refreshToken = req.cookies.refreshToken;
@@ -71,20 +67,11 @@ exports.refreshToken = async (req, res, next) => {
     // 🔹 Verifikasi token
     const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
-    // 🔹 Cek apakah token masih valid di Redis
-    const storedToken = await redis.get(`refresh:${payload.id}`);
-    if (!storedToken || storedToken !== refreshToken) {
-      return res.status(403).json({ error: 'Refresh token tidak valid' });
-    }
-
     // 🔹 Buat token baru
     const newAccessToken = generateAccessToken({ id: payload.id, email: payload.email, role: payload.role });
     const newRefreshToken = generateRefreshToken({ id: payload.id, email: payload.email, role: payload.role });
 
-    // 🔹 Perbarui refresh token di Redis
-    await redis.set(`refresh:${payload.id}`, newRefreshToken, 'EX', 604800);
-
-    // 🔹 Simpan refresh token baru di cookie
+    // 🔹 Perbarui refresh token di cookie (tanpa Redis)
     res.cookie('refreshToken', newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -98,14 +85,9 @@ exports.refreshToken = async (req, res, next) => {
   }
 };
 
-// ✅ LOGOUT USER & HAPUS TOKEN DARI REDIS
+// ✅ LOGOUT USER (Menghapus token hanya dari cookie, tanpa Redis)
 exports.logoutUser = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-
-    // 🔹 Hapus refresh token dari Redis
-    await redis.del(`refresh:${userId}`);
-
     // 🔹 Hapus cookie refresh token
     res.clearCookie('refreshToken');
 
